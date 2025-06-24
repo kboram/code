@@ -1,0 +1,180 @@
+import serial
+import serial.tools.list_ports
+import tkinter as tk
+from tkinter import ttk
+import tkinter.font
+from datetime import datetime
+import openpyxl
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+import matplotlib.dates as mdates
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import threading
+import smtplib
+from email.mime.text import MIMEText
+
+# 엑셀 초기화
+wb = openpyxl.Workbook()
+ws = wb.active
+ws.title = "Temperature Log"
+ws.append(["Date", "Time", "Temperature (°C)"])
+
+# 글로벌 변수
+temperature_data = []
+time_data = []
+current_temperature = "--"
+
+# 네이버 이메일 설정
+EMAIL_ADDRESS = "rnjsqhfka01@naver.com"  # 네이버 이메일 주소
+EMAIL_PASSWORD = "GFCXTDT6WBQ9"    # 네이버 앱 비밀번호
+RECIPIENT_EMAIL = "rnjsqhfka01@naver.com"  # 수신 이메일 주소
+
+# 이메일 알림 전송 함수
+def send_email_alert(temp):
+    """
+    37도 이상의 온도가 감지되면 네이버 이메일 알림을 전송합니다.
+    """
+    try:
+        subject = "온도 경고 알림"
+        body = f"주의: 높은 온도가 감지되었습니다! 현재 온도는 {temp:.1f}°C 입니다."
+
+        # 이메일 메시지 생성
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = RECIPIENT_EMAIL
+
+        # 네이버 SMTP 서버에 연결하여 이메일 전송
+        with smtplib.SMTP("smtp.naver.com", 587) as server:
+            server.starttls()  # TLS 암호화 시작
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            server.send_message(msg)
+            print(f"이메일 알림 전송 완료: {RECIPIENT_EMAIL}")
+    except Exception as e:
+        print(f"이메일 전송 실패: {e}")
+
+# 시리얼 연결 설정
+def connect_serial():
+    try:
+        ports = list(serial.tools.list_ports.comports())
+        for p in ports:
+            if 'Arduino Uno' in p.description:
+                print(f"{p.device} 포트에 연결하였습니다.")
+                return serial.Serial(p.device, baudrate=9600, timeout=1.0)
+        raise Exception("아두이노를 찾을 수 없습니다.")
+    except Exception as e:
+        print(f"시리얼 연결 오류: {e}")
+        exit()
+
+my_serial = connect_serial()
+
+# 시리얼 데이터 수신
+def read_serial_data():
+    global current_temperature
+    while True:
+        try:
+            if my_serial.in_waiting > 0:
+                data = my_serial.readline().decode().strip()
+                print(f"수신된 데이터: {data}")
+
+                if data.startswith("Temp:"):
+                    temp = float(data.split(":")[1])
+                    save_temperature(temp)
+                elif data.startswith("Temp["):
+                    temp = float(data.split(":")[1])
+                    save_temperature(temp)
+                elif data == "CLEAR_DATA":
+                    print("데이터 초기화 메시지 수신됨")
+                    reset_data()
+        except Exception as e:
+            print(f"시리얼 데이터 처리 오류: {e}")
+
+# 데이터 저장 및 이메일 전송
+def save_temperature(temp):
+    global current_temperature
+    current_temperature = f"{temp:.1f}°C"
+
+    now = datetime.now()
+    time_data.append(now)
+    temperature_data.append(temp)
+
+    ws.append([now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S"), temp])
+    wb.save("temperature_log.xlsx")
+
+    # 37도 이상일 경우 이메일 전송
+    if temp >= 37.0:
+        send_email_alert(temp)
+
+    update_gui(temp)
+
+    if len(time_data) > 100:
+        time_data.pop(0)
+        temperature_data.pop(0)
+
+# GUI 업데이트
+def update_gui(temp):
+    label.config(text=f"{temp:.1f}°C")
+    if temp >= 37.0:
+        label.config(bg="red")
+    elif temp >= 35.0:
+        label.config(bg="yellow")
+    else:
+        label.config(bg="green")
+
+# 데이터 초기화
+def reset_data():
+    global temperature_data, time_data, current_temperature
+    print("데이터 초기화 시작...")
+    temperature_data.clear()
+    time_data.clear()
+    current_temperature = "--"
+    label.config(text=current_temperature, bg="white")
+    ws.delete_rows(2, ws.max_row + 1)
+    wb.save("temperature_log.xlsx")
+    print("데이터 초기화 완료")
+
+# 실시간 그래프 업데이트
+def animate_graph(i):
+    ax.clear()
+    if time_data and temperature_data:
+        ax.plot(time_data, temperature_data, label='Temperature (°C)', color='blue')
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    ax.set_title('Real-time Temperature')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Temperature (°C)')
+    ax.legend()
+    plt.xticks(rotation=45, ha='right')
+
+# GUI 설정
+window = tk.Tk()
+window.title("스마트 건강 모니터링 시스템")
+window.geometry("500x400")
+
+font = tk.font.Font(size=50)
+label = tk.Label(window, text=current_temperature, font=font, bg='white', width=10)
+label.pack(pady=30)
+
+reset_button = tk.Button(window, text="데이터 초기화", command=reset_data, font=("Arial", 14))
+reset_button.pack(pady=10)
+
+# 그래프 창 설정
+graph_window = tk.Toplevel(window)
+graph_window.title("온도 그래프")
+graph_window.geometry("700x500")
+
+fig, ax = plt.subplots()
+canvas = FigureCanvasTkAgg(fig, master=graph_window)
+canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+ani = FuncAnimation(fig, animate_graph, interval=1000, cache_frame_data=False)
+
+# 시리얼 데이터 읽기 쓰레드 시작
+serial_thread = threading.Thread(target=read_serial_data)
+serial_thread.daemon = True
+serial_thread.start()
+
+# GUI 메인 루프 실행
+window.mainloop()
+
+# 프로그램 종료 시 시리얼 포트 닫기
+my_serial.close()
