@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>안전 사고 정보 챗봇</title>
+    <!-- Bootstrap CSS 링크 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 페이지 및 컨테이너 스타일 */
+        body {
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .chatbot-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .chat-box {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .user-message, .bot-message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .user-message .message-text {
+            background-color: #d1e7dd;
+            color: #333;
+            border-radius: 8px;
+            padding: 10px;
+            max-width: 80%;
+        }
+        .bot-message .message-text {
+            background-color: #e9ecef;
+            color: #333;
+            border-radius: 8px;
+            padding: 10px;
+            max-width: 80%;
+        }
+        .user-message {
+            justify-content: flex-end;
+        }
+        .bot-message {
+            justify-content: flex-start;
+        }
+    </style>
+</head>
+<body>
+    <div class="chatbot-container">
+        <h1 class="text-center mb-4">안전 사고 정보 챗봇</h1>
+        <div id="chat-box" class="chat-box">
+            <!-- 메시지들이 이곳에 표시됩니다 -->
+        </div>
+        <form id="chat-form" class="input-group mb-3">
+            <input type="text" id="user-input" class="form-control" placeholder="질문을 입력하세요" autocomplete="off">
+            <button type="submit" class="btn btn-success">질문하기</button>
+        </form>
+    </div>
+
+    <!-- Bootstrap JS 및 Popper.js 링크 -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+
+    <script>
+        document.getElementById("chat-form").onsubmit = async (e) => {
+            e.preventDefault();
+            const userInput = document.getElementById("user-input").value;
+            if (!userInput.trim()) return; // 빈 입력 무시
+            
+            // 사용자 메시지를 추가
+            addMessage(userInput, 'user');
+
+            // 입력 필드 비우기
+            document.getElementById("user-input").value = '';
+            
+            // 챗봇에게 요청 전송
+            const response = await fetch("/api/chatbot", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ text: userInput })
+            });
+            const data = await response.json();
+
+            // 챗봇 응답 추가
+            addMessage(data.response, 'bot');
+        };
+
+        // 메시지를 추가하는 함수
+        function addMessage(text, sender) {
+            const chatBox = document.getElementById("chat-box");
+            const messageElement = document.createElement("div");
+            messageElement.classList.add(sender === 'user' ? 'user-message' : 'bot-message');
+            
+            const messageText = document.createElement("div");
+            messageText.classList.add("message-text");
+            messageText.textContent = text;
+            
+            messageElement.appendChild(messageText);
+            chatBox.appendChild(messageElement);
+
+            // 새로운 메시지가 보이도록 스크롤
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
+
+
+
