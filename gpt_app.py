@@ -3,7 +3,7 @@ import openai
 import pandas as pd
 
 # OpenAI API 키 설정
-openai.api_key = "sk-xqZsv3igHbpA8h6NvYoznzpeIkNTHUq4hhr5gY9w6hT3BlbkFJFMTZ8foY1NWPzJWZCr4LuktbFQwQRF6EhXmqW7cR4A"  # 여기에 발급받은 API 키를 입력하세요.
+openai.api_key = ""  # 여기에 발급받은 API 키를 입력하세요.
 
 
 app = Flask(__name__)
